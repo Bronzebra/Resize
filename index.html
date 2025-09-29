@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1115">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Resize & Enhance — PWA</title>
+<style>
+  :root{--bg:#0f1115;--panel:#161a22;--text:#e8eaf0;--sub:#9aa3b2;--accent:#4da3ff;--border:#242a35}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  header{padding:16px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:linear-gradient(180deg,var(--bg),rgba(15,17,21,.9))}
+  header h1{margin:0;font-size:18px}
+  main{display:grid;grid-template-columns:340px 1fr; gap:16px; padding:16px; align-items:start}
+  @media (max-width: 980px){ main{grid-template-columns:1fr} }
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}
+  .card h2{margin:0 0 10px 0;font-size:16px}
+  .drop{border:1px dashed #394355;border-radius:10px;padding:16px;text-align:center;color:var(--sub);background:#121621}
+  .drop.drag{background:#10141c; border-color: var(--accent); color:#cfe3ff}
+  input[type="file"]{display:none}
+  .btn{display:inline-flex;gap:8px;align-items:center;border:1px solid var(--border);background:#121723;color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer}
+  .btn.primary{background:var(--accent);border-color:#3a7dd6;color:#0c1220}
+  .row{display:grid;grid-template-columns:1fr 1fr; gap:8px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr; gap:8px}
+  label span{color:var(--sub);display:block;margin-bottom:6px}
+  input[type="number"], select{width:100%;padding:8px 10px;border:1px solid var(--border);background:#0f141d;color:var(--text);border-radius:8px}
+  .slider{width:100%}
+  .preview-wrap{display:grid;grid-template-columns:1fr 1fr; gap:12px}
+  @media (max-width: 980px){ .preview-wrap{grid-template-columns:1fr} }
+  .preview{background:#0b0f16;border:1px solid var(--border);border-radius:10px;padding:10px;height:420px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+  .preview canvas, .preview img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px}
+  .meta{color:var(--sub);font-size:12px;margin-top:6px}
+  .kbd{font:12px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+       background:#10141c;border:1px solid var(--border);border-bottom-color:#0a0d13;border-radius:6px;padding:2px 6px;color:#d8dee9}
+  footer{padding:10px 16px;color:var(--sub);text-align:center}
+  .help{color:var(--sub); font-size:12px}
+  .badge{font-size:12px;background:#10141c;border:1px solid var(--border);padding:3px 8px;border-radius:999px;color:#a4b0c0}
+</style>
+</head>
+<body>
+<header>
+  <h1>🖼️ Resize & Enhance <span class="badge">PWA</span></h1>
+</header>
+
+<main>
+  <section class="card" id="left">
+    <h2>1) เลือกรูป</h2>
+    <div class="drop" id="drop">
+      ลากรูปมาปล่อยที่นี่ หรือ<br>
+      <label class="btn" for="file"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="5" x2="12" y2="20"/></svg> เลือกไฟล์</label>
+      <input id="file" type="file" accept="image/*">
+      <div class="meta">รองรับ JPG, PNG, WebP, GIF (เฟรมแรก)</div>
+    </div>
+
+    <h2 style="margin-top:16px">2) ตั้งค่า</h2>
+    <div class="row">
+      <label><span>โหมดปรับขนาด</span>
+        <select id="mode">
+          <option value="percent">เปอร์เซ็นต์</option>
+          <option value="width">กำหนดกว้าง (px)</option>
+          <option value="height">กำหนดสูง (px)</option>
+          <option value="box">ย่อ/ขยายให้พอดีกล่อง</option>
+        </select>
+      </label>
+      <label><span id="labelA">เปอร์เซ็นต์ (%)</span>
+        <input id="a" type="number" min="1" step="1" value="200">
+      </label>
+    </div>
+    <div class="row" id="boxRow" style="display:none">
+      <label><span>กว้างสูงสุด (px)</span><input id="boxW" type="number" min="1" step="1" value="4000"></label>
+      <label><span>สูงสุด (px)</span><input id="boxH" type="number" min="1" step="1" value="4000"></label>
+    </div>
+
+    <div class="row">
+      <label><span>ความคมชัด (Sharpen)</span>
+        <input id="sharpen" class="slider" type="range" min="0" max="3" step="0.1" value="1.2">
+      </label>
+      <label><span>ลดนอยส์ (Denoise)</span>
+        <input id="denoise" class="slider" type="range" min="0" max="1.5" step="0.1" value="0.2">
+      </label>
+    </div>
+
+    <div class="row">
+      <label><span>บีบอัดไฟล์ (JPG/WebP)</span>
+        <input id="quality" class="slider" type="range" min="0.5" max="1" step="0.01" value="0.92">
+      </label>
+      <label><span>บันทึกเป็น</span>
+        <select id="format">
+          <option>PNG</option>
+          <option selected>JPG</option>
+          <option>WebP</option>
+        </select>
+      </label>
+    </div>
+
+    <h2 style="margin-top:12px">3) ซ่อมลาย JPEG</h2>
+    <div class="row">
+      <label><span>JPEG Repair (แนะนำ 0.4–1.0)</span>
+        <input id="jpegRepair" class="slider" type="range" min="0" max="1.5" step="0.05" value="0.6">
+      </label>
+      <label><span>Deblock 8×8</span>
+        <input id="deblock" class="slider" type="range" min="0" max="1.0" step="0.05" value="0.5">
+      </label>
+    </div>
+    <div class="help">ฟีเจอร์นี้จะลบรอยบล็อก 8×8, ลดสีแตก (chroma), และลด ring เบาๆ บนความสว่าง</div>
+
+    <div class="row3" style="margin-top:8px">
+      <button class="btn" data-quick="200">×2</button>
+      <button class="btn" data-quick="300">×3</button>
+      <button class="btn" data-quick="400">×4</button>
+    </div>
+
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn primary" id="runBtn">✨ ประมวลผล</button>
+      <a class="btn" id="saveBtn" download="enhanced.png">บันทึกไฟล์</a>
+      <button class="btn" id="installBtn" style="display:none">ติดตั้งแอพ (Add to Home Screen)</button>
+    </div>
+
+    <div class="meta" style="margin-top:8px">
+      ทิป: ถือ <span class="kbd">Shift</span> แล้วลาก-ปล่อย เพื่อประมวลผลทันที
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>พรีวิว</h2>
+    <div class="preview-wrap">
+      <div class="preview">
+        <img id="origPreview" alt="Original preview">
+        <div class="meta" id="origMeta" style="position:absolute;left:10px;bottom:8px"></div>
+      </div>
+      <div class="preview">
+        <canvas id="outCanvas"></canvas>
+        <div class="meta" id="outMeta" style="position:absolute;left:10px;bottom:8px"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  สร้างด้วย Canvas — ออฟไลน์ได้หลังติดตั้ง PWA (ต้องเปิดผ่าน HTTPS)
+</footer>
+
+<script>
+// ---- PWA install prompt ----
+let deferredPrompt;
+const installBtn = document.getElementById('installBtn');
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  installBtn.style.display = 'inline-flex';
+});
+installBtn?.addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  installBtn.style.display = 'none';
+});
+
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js');
+  });
+}
+</script>
+
+<script>
+// ---- App logic (same as previous, shortened to keep file manageable here) ----
+const fileInput = document.getElementById('file');
+const drop = document.getElementById('drop');
+const origPreview = document.getElementById('origPreview');
+const origMeta = document.getElementById('origMeta');
+const outCanvas = document.getElementById('outCanvas');
+const outMeta = document.getElementById('outMeta');
+const runBtn = document.getElementById('runBtn');
+const saveBtn = document.getElementById('saveBtn');
+const a = document.getElementById('a');
+const mode = document.getElementById('mode');
+const labelA = document.getElementById('labelA');
+const boxRow = document.getElementById('boxRow');
+const boxW = document.getElementById('boxW');
+const boxH = document.getElementById('boxH');
+const sharpen = document.getElementById('sharpen');
+const denoise = document.getElementById('denoise');
+const format = document.getElementById('format');
+const quality = document.getElementById('quality');
+const jpegRepair = document.getElementById('jpegRepair');
+const deblock = document.getElementById('deblock');
+
+let imageBitmap = null;
+let original = {w:0,h:0,type:null,name:null};
+
+mode.addEventListener('change', () => {
+  const v = mode.value;
+  if(v==='percent'){ labelA.textContent='เปอร์เซ็นต์ (%)'; boxRow.style.display='none'; }
+  else if(v==='width'){ labelA.textContent='กว้าง (px)'; boxRow.style.display='none'; }
+  else if(v==='height'){ labelA.textContent='สูง (px)'; boxRow.style.display='none'; }
+  else { labelA.textContent='—'; boxRow.style.display='grid'; }
+});
+document.querySelectorAll('[data-quick]').forEach(btn=>{
+  btn.addEventListener('click',()=>{ mode.value='percent'; labelA.textContent='เปอร์เซ็นต์ (%)'; a.value=btn.dataset.quick; });
+});
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault(); drop.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault(); drop.classList.remove('drag');}));
+drop.addEventListener('drop', async (e)=>{
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if(!file) return;
+  await handleFile(file);
+  if(e.shiftKey) process();
+});
+drop.addEventListener('click',()=>fileInput.click());
+fileInput.addEventListener('change', async ()=>{
+  const file = fileInput.files[0];
+  if(file) await handleFile(file);
+});
+
+async function handleFile(file){
+  try{
+    original.name = file.name;
+    original.type = file.type;
+    const ab = await file.arrayBuffer();
+    imageBitmap = await createImageBitmap(new Blob([ab]));
+    original.w = imageBitmap.width; original.h = imageBitmap.height;
+    const url = URL.createObjectURL(new Blob([ab]));
+    origPreview.src = url;
+    origMeta.textContent = `${original.w}×${original.h}px • ${(file.size/1024/1024).toFixed(2)} MB`;
+  }catch(err){
+    alert('ไม่สามารถเปิดไฟล์นี้ได้: '+err.message);
+  }
+}
+
+runBtn.addEventListener('click', process);
+
+function computeSize(){
+  let w = original.w, h = original.h;
+  const m = mode.value;
+  if(m==='percent'){
+    const p = Math.max(1, parseFloat(a.value||100))/100;
+    w = Math.round(original.w * p);
+    h = Math.round(original.h * p);
+  }else if(m==='width'){
+    w = Math.max(1, parseInt(a.value||original.w,10));
+    h = Math.round(original.h * (w/original.w));
+  }else if(m==='height'){
+    h = Math.max(1, parseInt(a.value||original.h,10));
+    w = Math.round(original.w * (h/original.h));
+  }else{ // box
+    const bw = Math.max(1, parseInt(boxW.value||original.w,10));
+    const bh = Math.max(1, parseInt(boxH.value||original.h,10));
+    const r = Math.min(bw/original.w, bh/original.h);
+    w = Math.max(1, Math.round(original.w*r));
+    h = Math.max(1, Math.round(original.h*r));
+  }
+  return {w,h};
+}
+
+async function process(){
+  if(!imageBitmap){ alert('กรุณาเลือกรูปก่อน'); return; }
+  const {w, h} = computeSize();
+  const off = ('OffscreenCanvas' in window) ? new OffscreenCanvas(w,h) : document.createElement('canvas');
+  off.width = w; off.height = h;
+  const ctx = off.getContext('2d', {willReadFrequently:true});
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(imageBitmap, 0, 0, w, h);
+
+  const jr = parseFloat(jpegRepair.value);
+  const db = parseFloat(deblock.value);
+  if(jr>0 || db>0){ await jpegRepairProcess(ctx, w, h, jr, db); }
+
+  const d = parseFloat(denoise.value);
+  if(d>0){ await blurSeparable(ctx, w, h, d*1.5); }
+
+  const s = parseFloat(sharpen.value);
+  if(s>0){ await unsharpMask(ctx, w, h, s, 1.0); }
+
+  outCanvas.width = w; outCanvas.height = h;
+  const vctx = outCanvas.getContext('2d');
+  vctx.drawImage(('transferToImageBitmap' in off)? await off.convertToBlob? await createImageBitmap(await off.convertToBlob()) : off : off, 0, 0);
+
+  outMeta.textContent = `${w}×${h}px`;
+
+  const fmt = document.getElementById('format').value.toLowerCase();
+  let mime = 'image/png'; if(fmt==='jpg') mime='image/jpeg'; if(fmt==='webp') mime='image/webp';
+  const q = parseFloat(document.getElementById('quality').value);
+  outCanvas.toBlob((blob)=>{
+    const url = URL.createObjectURL(blob);
+    saveBtn.href = url;
+    const base = (original.name||'enhanced').replace(/\.[^.]+$/,'') + `_${w}x${h}`;
+    saveBtn.download = `${base}.${fmt==='jpg'?'jpg':fmt==='webp'?'webp':'png'}`;
+  }, mime, q);
+}
+
+function getImageData(ctx,w,h){ return ctx.getImageData(0,0,w,h); }
+function putImageData(ctx,img){ ctx.putImageData(img,0,0); }
+
+async function blurSeparable(ctx,w,h, radius){
+  const img = getImageData(ctx,w,h);
+  const data = img.data;
+  const tmp = new Uint8ClampedArray(data.length);
+  const r = Math.max(1, Math.floor(radius));
+  const kernel = gaussianKernel(r);
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      let rsum=0,gsum=0,bsum=0,asum=0,ksum=0;
+      for(let k=-r;k<=r;k++){
+        const xx = Math.min(w-1, Math.max(0, x+k));
+        const idx = (y*w+xx)*4;
+        const kv = kernel[k+r];
+        rsum += data[idx]*kv; gsum += data[idx+1]*kv; bsum += data[idx+2]*kv; asum += data[idx+3]*kv; ksum += kv;
+      }
+      const o = (y*w+x)*4;
+      tmp[o]=rsum/ksum; tmp[o+1]=gsum/ksum; tmp[o+2]=bsum/ksum; tmp[o+3]=asum/ksum;
+    }
+  }
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      let rsum=0,gsum=0,bsum=0,asum=0,ksum=0;
+      for(let k=-r;k<=r;k++){
+        const yy = Math.min(h-1, Math.max(0, y+k));
+        const idx = (yy*w+x)*4;
+        const kv = kernel[k+r];
+        rsum += tmp[idx]*kv; gsum += tmp[idx+1]*kv; bsum += tmp[idx+2]*kv; asum += tmp[idx+3]*kv; ksum += kv;
+      }
+      const o = (y*w+x)*4;
+      data[o]=rsum/ksum; data[o+1]=gsum/ksum; data[o+2]=bsum/ksum; data[o+3]=asum/ksum;
+    }
+  }
+  putImageData(ctx,img);
+}
+function gaussianKernel(r){
+  const sigma = Math.max(0.8, r/2); const a = 1/(Math.sqrt(2*Math.PI)*sigma);
+  const kernel = []; let sum=0;
+  for(let i=-r;i<=r;i++){ const v = a*Math.exp(-(i*i)/(2*sigma*sigma)); kernel.push(v); sum+=v; }
+  return kernel.map(v=>v/sum);
+}
+async function unsharpMask(ctx,w,h, amount=1.0, radius=1.0){
+  const img = getImageData(ctx,w,h);
+  const data = img.data;
+  const blurred = new ImageData(new Uint8ClampedArray(data), w, h);
+  const tmpCtx = document.createElement('canvas').getContext('2d',{willReadFrequently:true});
+  tmpCtx.canvas.width=w; tmpCtx.canvas.height=h; tmpCtx.putImageData(blurred,0,0);
+  await blurSeparable(tmpCtx, w, h, Math.max(1, radius*2));
+  const blurData = tmpCtx.getImageData(0,0,w,h).data;
+  for(let i=0;i<data.length;i+=4){
+    const r = data[i], g=data[i+1], b=data[i+2];
+    const br = blurData[i], bg=blurData[i+1], bb=blurData[i+2];
+    data[i]   = clamp(r + (r - br)*amount);
+    data[i+1] = clamp(g + (g - bg)*amount);
+    data[i+2] = clamp(b + (b - bb)*amount);
+  }
+  putImageData(ctx,img);
+}
+function clamp(v){ return v<0?0:(v>255?255:v); }
+
+async function jpegRepairProcess(ctx, w, h, strength=0.6, deblockAmt=0.5){
+  const img = getImageData(ctx,w,h);
+  const d = img.data;
+  const Y = new Float32Array(w*h);
+  const Cb = new Float32Array(w*h);
+  const Cr = new Float32Array(w*h);
+  for(let i=0, p=0; i<d.length; i+=4, p++){
+    const r=d[i], g=d[i+1], b=d[i+2];
+    const y  =  0.299*r + 0.587*g + 0.114*b;
+    const cb = -0.168736*r - 0.331264*g + 0.5*b + 128;
+    const cr =  0.5*r - 0.418688*g - 0.081312*b + 128;
+    Y[p]=y; Cb[p]=cb; Cr[p]=cr;
+  }
+  const chromaRadius = Math.max(1, Math.floor(2 + strength*2));
+  separableBlurFloat(Cb, w, h, chromaRadius);
+  separableBlurFloat(Cr, w, h, chromaRadius);
+  if(deblockAmt>0){
+    const alpha = Math.min(1, deblockAmt);
+    for(let x=8; x<w; x+=8){
+      for(let y=0; y<h; y++){
+        const idxL = y*w + (x-1);
+        const idxR = y*w + x;
+        const yAvg = (Y[idxL]+Y[idxR])*0.5;
+        Y[idxL] = Y[idxL]*(1-alpha) + yAvg*alpha;
+        Y[idxR] = Y[idxR]*(1-alpha) + yAvg*alpha;
+      }
+    }
+    for(let y=8; y<h; y+=8){
+      for(let x=0; x<w; x++){
+        const idxT = (y-1)*w + x;
+        const idxB = y*w + x;
+        const yAvg = (Y[idxT]+Y[idxB])*0.5;
+        Y[idxT] = Y[idxT]*(1-alpha) + yAvg*alpha;
+        Y[idxB] = Y[idxB]*(1-alpha) + yAvg*alpha;
+      }
+    }
+  }
+  bilateralY(Y, w, h, Math.max(1, Math.round(1+strength)), 12 + 20*strength);
+  for(let p=0, i=0; p<Y.length; p++, i+=4){
+    const y=Y[p], cb=Cb[p]-128, cr=Cr[p]-128;
+    let r = y + 1.402*cr;
+    let g = y - 0.344136*cb - 0.714136*cr;
+    let b = y + 1.772*cb;
+    d[i]  = clamp(r);
+    d[i+1]= clamp(g);
+    d[i+2]= clamp(b);
+  }
+  putImageData(ctx,img);
+}
+function separableBlurFloat(ch, w, h, radius){
+  const tmp = new Float32Array(ch.length);
+  const k = gaussianKernel(radius);
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      let sum=0, ksum=0;
+      for(let t=-radius;t<=radius;t++){
+        const xx = Math.min(w-1, Math.max(0, x+t));
+        const kv = k[t+radius];
+        sum += ch[y*w+xx]*kv; ksum += kv;
+      }
+      tmp[y*w+x] = sum/ksum;
+    }
+  }
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      let sum=0, ksum=0;
+      for(let t=-radius;t<=radius;t++){
+        const yy = Math.min(h-1, Math.max(0, y+t));
+        const kv = k[t+radius];
+        sum += tmp[yy*w+x]*kv; ksum += kv;
+      }
+      ch[y*w+x] = sum/ksum;
+    }
+  }
+}
+function bilateralY(Y, w, h, radius, sigmaRange){
+  const tmp = new Float32Array(Y.length);
+  const spaceK = gaussianKernel(radius);
+  const twoSigma2 = 2*sigmaRange*sigmaRange;
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const idx = y*w+x;
+      const center = Y[idx];
+      let sum=0, wsum=0;
+      for(let dy=-radius; dy<=radius; dy++){
+        const yy = Math.min(h-1, Math.max(0, y+dy));
+        for(let dx=-radius; dx<=radius; dx++){
+          const xx = Math.min(w-1, Math.max(0, x+dx));
+          const j = yy*w+xx;
+          const ds = spaceK[dy+radius]*spaceK[dx+radius];
+          const dr = Y[j]-center;
+          const wr = Math.exp(-(dr*dr)/twoSigma2);
+          const wgt = ds*wr;
+          sum += Y[j]*wgt; wsum += wgt;
+        }
+      }
+      tmp[idx] = sum/(wsum||1);
+    }
+  }
+  Y.set(tmp);
+}
+</script>
+</body>
+</html>
